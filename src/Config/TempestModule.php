@@ -5,15 +5,17 @@ declare(strict_types=1);
 namespace Ecotone\Tempest\Config;
 
 use Ecotone\AnnotationFinder\AnnotationFinder;
+use Ecotone\Api\Attribute\Aggregate;
+use Ecotone\Api\Attribute\ModuleAnnotation;
+use Ecotone\Api\Dbal\ExtensionObject\MultiTenantConfiguration;
+use Ecotone\Api\ExtensionObject\ModulePackageList;
+use Ecotone\Api\Tempest\TempestConnectionReference;
 use Ecotone\Dbal\MultiTenant\HeaderBasedMultiTenantConnectionFactory;
-use Ecotone\Dbal\MultiTenant\MultiTenantConfiguration;
-use Ecotone\Messaging\Attribute\ModuleAnnotation;
 use Ecotone\Messaging\Config\Annotation\AnnotationModule;
 use Ecotone\Messaging\Config\Annotation\ModuleConfiguration\ExtensionObjectResolver;
 use Ecotone\Messaging\Config\Annotation\ModuleConfiguration\NoExternalConfigurationModule;
 use Ecotone\Messaging\Config\Configuration;
 use Ecotone\Messaging\Config\Container\Definition;
-use Ecotone\Messaging\Config\ModulePackageList;
 use Ecotone\Messaging\Config\ModuleReferenceSearchService;
 use Ecotone\Messaging\Handler\InterfaceToCallRegistry;
 use Ecotone\Messaging\Handler\ServiceActivator\ServiceActivatorBuilder;
@@ -23,18 +25,32 @@ use Interop\Queue\ConnectionFactory;
 /**
  * licence Apache-2.0
  */
-final class TempestConnectionModule extends NoExternalConfigurationModule implements AnnotationModule
+final class TempestModule extends NoExternalConfigurationModule implements AnnotationModule
 {
+    /**
+     * @param class-string[] $aggregateClasses
+     */
+    private function __construct(private array $aggregateClasses)
+    {
+    }
+
     public static function create(AnnotationFinder $annotationRegistrationService, InterfaceToCallRegistry $interfaceToCallRegistry): static
     {
-        return new self();
+        return new self($annotationRegistrationService->findAnnotatedClasses(Aggregate::class));
     }
 
     public function prepare(Configuration $messagingConfiguration, array $extensionObjects, ModuleReferenceSearchService $moduleReferenceSearchService, InterfaceToCallRegistry $interfaceToCallRegistry): void
     {
+        TempestModelVersionGuard::assertNoVersionedTempestModel($this->aggregateClasses, $interfaceToCallRegistry);
+
         $tempestConnections = ExtensionObjectResolver::resolve(TempestConnectionReference::class, $extensionObjects);
 
         foreach ($tempestConnections as $connection) {
+            TempestConnectionDbalGuard::assertDbalInstalledFor(
+                $connection->configTag === null
+                    ? "TempestConnectionReference '{$connection->getReferenceName()}'"
+                    : "TempestConnectionReference::create('{$connection->configTag}')"
+            );
             $messagingConfiguration->registerServiceDefinition(
                 $connection->getReferenceName(),
                 $this->buildConnectionFactoryDefinition($connection)
@@ -50,7 +66,7 @@ final class TempestConnectionModule extends NoExternalConfigurationModule implem
         $tempestRelatedMultiTenantConfigurations = [];
 
         foreach ($multiTenantConfigurations as $multiTenantConfiguration) {
-            foreach ($multiTenantConfiguration->getTenantToConnectionMapping() as $connectionReference) {
+            foreach ($multiTenantConfiguration->tenantToConnectionMapping as $connectionReference) {
                 if (! ($connectionReference instanceof TempestConnectionReference)) {
                     continue;
                 }
@@ -89,12 +105,6 @@ final class TempestConnectionModule extends NoExternalConfigurationModule implem
             ServiceActivatorBuilder::create(TempestTenantDatabaseSwitcher::class, 'switchOff')
                 ->withInputChannelName(HeaderBasedMultiTenantConnectionFactory::TENANT_DEACTIVATED_CHANNEL_NAME)
         );
-    }
-
-    public function canHandle($extensionObject): bool
-    {
-        return $extensionObject instanceof TempestConnectionReference
-            || $extensionObject instanceof MultiTenantConfiguration;
     }
 
     public function getModulePackageName(): string

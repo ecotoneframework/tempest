@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Test\Ecotone\Tempest\Fixture\Dbal;
+namespace Test\Ecotone\Tempest\Fixture\EnabledModulePackageNames;
 
-use Ecotone\Messaging\Attribute\ServiceContext;
-use Ecotone\Tempest\Config\TempestConnectionReference;
+use Ecotone\Api\Attribute\ServiceContext;
+use Ecotone\Api\Tempest\TempestConnectionReference;
 
 /**
  * licence Apache-2.0
