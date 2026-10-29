@@ -6,10 +6,10 @@ namespace Ecotone\Tempest;
 
 use const DIRECTORY_SEPARATOR;
 
-use Ecotone\Api\Messaging\ConfiguredMessagingSystem;
-use Ecotone\Messaging\Config\BootstrapConfiguration;
+use Ecotone\Messaging\Config\ConfiguredMessagingSystem;
 use Ecotone\Messaging\Config\MessagingSystemConfiguration;
 use Ecotone\Messaging\Config\ServiceCacheConfiguration;
+use Ecotone\Messaging\Config\ServiceConfiguration;
 use Ecotone\SymfonyContainer\ContainerCacheLayout;
 use Ecotone\SymfonyContainer\EcotoneSymfonyContainerFactory;
 use Tempest\Container\Container;
@@ -17,7 +17,6 @@ use Tempest\Container\GenericContainer;
 use Tempest\Container\Initializer;
 use Tempest\Container\Singleton;
 use Tempest\Discovery\Composer;
-use Tempest\Discovery\DiscoveryCacheStrategy;
 use Throwable;
 
 /**
@@ -62,9 +61,9 @@ final class MessagingSystemInitializer implements Initializer
         $rootPath = getcwd();
         $cacheDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ecotone_tempest';
         $environment = getenv('APP_ENV') ?: (getenv('ENVIRONMENT') ?: 'production');
-        $useProductionCache = in_array($environment, ['prod', 'production'], true) || DiscoveryCacheStrategy::resolveFromEnvironment() === DiscoveryCacheStrategy::FULL;
+        $useProductionCache = in_array($environment, ['prod', 'production'], true) ? true : $config->cacheConfiguration;
 
-        $applicationConfiguration = $this->buildBootstrapConfiguration($config, $environment, $cacheDirectory, $container);
+        $applicationConfiguration = $this->buildServiceConfiguration($config, $environment, $cacheDirectory, $container);
 
         [$ecotoneContainer, $configHash] = $this->prepareFromCache(
             $useProductionCache,
@@ -109,26 +108,36 @@ final class MessagingSystemInitializer implements Initializer
         return $namespaces;
     }
 
-    private function buildBootstrapConfiguration(
+    private function buildServiceConfiguration(
         EcotoneConfig $config,
         string $environment,
         string $cacheDirectory,
         Container $container,
-    ): BootstrapConfiguration {
+    ): ServiceConfiguration {
         $namespaces = $config->namespaces;
 
         if ($namespaces === [] && $config->loadAppNamespaces) {
             $namespaces = $this->deriveNamespacesFromComposer($container);
         }
 
-        $applicationConfiguration = BootstrapConfiguration::createWithDefaults()
+        $applicationConfiguration = ServiceConfiguration::createWithDefaults()
             ->withEnvironment($environment)
             ->withLoadCatalog('')
+            ->withFailFast(false)
             ->withNamespaces($namespaces)
+            ->withSkippedModulePackageNames($config->skippedModulePackageNames)
             ->withCacheDirectoryPath($cacheDirectory);
 
-        if ($config->enabledModulePackageNames !== null) {
-            $applicationConfiguration = $applicationConfiguration->withEnabledModulePackageNames($config->enabledModulePackageNames);
+        if ($config->serviceName !== '') {
+            $applicationConfiguration = $applicationConfiguration->withServiceName($config->serviceName);
+        }
+
+        if ($config->defaultSerializationMediaType !== '') {
+            $applicationConfiguration = $applicationConfiguration->withDefaultSerializationMediaType($config->defaultSerializationMediaType);
+        }
+
+        if ($config->defaultErrorChannel !== '') {
+            $applicationConfiguration = $applicationConfiguration->withDefaultErrorChannel($config->defaultErrorChannel);
         }
 
         if ($config->licenceKey !== '') {
@@ -143,7 +152,7 @@ final class MessagingSystemInitializer implements Initializer
     private function prepareFromCache(
         bool $useProductionCache,
         string $rootCatalog,
-        BootstrapConfiguration $applicationConfiguration,
+        ServiceConfiguration $applicationConfiguration,
         bool $enableTesting,
         string $cacheDirectory,
         Container $container,

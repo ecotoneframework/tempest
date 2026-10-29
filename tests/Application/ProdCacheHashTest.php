@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Test\Ecotone\Tempest\Application;
 
+use Ecotone\Messaging\Config\ModulePackageList;
 use Ecotone\Tempest\EcotoneConfig;
 use Ecotone\Tempest\EcotoneServiceInitializer;
 use Ecotone\Tempest\MessagingSystemInitializer;
@@ -19,14 +20,14 @@ final class ProdCacheHashTest extends EcotoneIntegrationTestCase
     {
         return new EcotoneConfig(
             namespaces: ['Test\\Ecotone\\Tempest\\Fixture\\User\\'],
-            enabledModulePackageNames: \Test\Ecotone\Tempest\TempestTestModulePackages::all(),
+            skippedModulePackageNames: ModulePackageList::allPackages(),
             test: true,
+            cacheConfiguration: true,
         );
     }
 
     protected function setUp(): void
     {
-        putenv('DISCOVERY_CACHE=true');
         $this->clearEcotoneTempestCacheDir();
         parent::setUp();
     }
@@ -35,7 +36,6 @@ final class ProdCacheHashTest extends EcotoneIntegrationTestCase
     {
         parent::tearDown();
         $this->clearEcotoneTempestCacheDir();
-        putenv('DISCOVERY_CACHE');
     }
 
     public function test_warm_prod_cache_path_returns_stable_non_null_config_hash(): void

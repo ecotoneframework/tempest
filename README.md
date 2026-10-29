@@ -46,8 +46,8 @@ Ecotone derives your application namespaces from the PSR-4 roots declared in you
 // src/Order/PlaceOrderHandler.php
 namespace App\Order;
 
-use Ecotone\Api\Attribute\CommandHandler;
-use Ecotone\Api\Attribute\QueryHandler;
+use Ecotone\Modelling\Attribute\CommandHandler;
+use Ecotone\Modelling\Attribute\QueryHandler;
 
 final class PlaceOrderHandler
 {
@@ -74,8 +74,8 @@ That is all that is needed. No configuration file, no registration — Ecotone d
 `CommandBus`, `QueryBus`, and `EventBus` are automatically registered in the Tempest container and can be injected anywhere:
 
 ```php
-use Ecotone\Api\Gateway\CommandBus;
-use Ecotone\Api\Gateway\QueryBus;
+use Ecotone\Modelling\CommandBus;
+use Ecotone\Modelling\QueryBus;
 
 final class OrderController
 {
@@ -110,7 +110,9 @@ final class EcotoneConfiguration
     public function ecotoneConfig(): EcotoneConfig
     {
         return new EcotoneConfig(
+            serviceName: 'my-service',
             licenceKey: getenv('ECOTONE_LICENCE_KEY') ?: '',
+            cacheConfiguration: true,
         );
     }
 }
@@ -123,37 +125,23 @@ Or simply bind `EcotoneConfig` in a Tempest config file:
 use Ecotone\Tempest\EcotoneConfig;
 
 return new EcotoneConfig(
+    serviceName: 'my-service',
     licenceKey: getenv('ECOTONE_LICENCE_KEY') ?: '',
 );
-```
-
-The service name, default serialization media type, default error channel and the other application settings are
-set on `ServiceConfiguration`, returned from exactly one `#[ServiceContext]` method:
-
-```php
-#[ServiceContext]
-public function serviceConfiguration(): ServiceConfiguration
-{
-    return ServiceConfiguration::createWithDefaults()
-        ->withServiceName('my_service')
-        ->withDefaultErrorChannel('errorChannel');
-}
 ```
 
 ### `EcotoneConfig` Reference
 
 | Property | Type | Default | Description |
 |---|---|---|---|
+| `serviceName` | `string` | `''` (from `ECOTONE_SERVICE_NAME` env) | Identifies this service in distributed tracing and logs |
 | `namespaces` | `array` | `[]` | Explicit namespaces to scan. When empty and `loadAppNamespaces` is true, derived from `composer.json` |
 | `loadAppNamespaces` | `bool` | `true` | Auto-derive scan namespaces from your app's PSR-4 roots |
-| `enabledModulePackageNames` | `?array` | `null` (every installed package) | Module packages to load in addition to Core, as `ModulePackageList` constants; `[]` loads Core alone |
-| `test` | `bool` | `false` | Load the test support module |
+| `cacheConfiguration` | `bool` | `false` (from `ECOTONE_CACHE_CONFIGURATION` env) | Cache the messaging system definition for production |
+| `defaultSerializationMediaType` | `string` | `''` | Override the default message serialization format |
+| `defaultErrorChannel` | `string` | `''` | Channel name for unhandled async exceptions |
+| `skippedModulePackageNames` | `array` | `[]` | Module packages to skip loading (useful for testing) |
 | `licenceKey` | `string` | `''` | Enterprise licence key |
-
-Any other named argument is refused when the configuration is constructed, with a `ConfigurationException` naming
-the arguments `EcotoneConfig` reads. The 1.x `skippedModulePackageNames` and the earlier 2.0 `modulePackages` are
-refused with their replacement: `skippedModulePackageNames` listed packages to skip, `enabledModulePackageNames` lists
-packages to load.
 
 ## Console Commands
 
@@ -170,7 +158,7 @@ Ecotone registers Tempest console commands automatically:
 ./tempest ecotone:cache:clear
 ```
 
-The `ecotone:cache:clear` command removes the cached messaging system definition from `sys_get_temp_dir()/ecotone_tempest/`. Use it after deploying changes when the production cache is in use.
+The `ecotone:cache:clear` command removes the cached messaging system definition from `sys_get_temp_dir()/ecotone_tempest/`. Use it after deploying changes when `cacheConfiguration` is enabled.
 
 ## Database Integration (requires `ecotone/dbal`)
 
@@ -185,8 +173,8 @@ composer require ecotone/dbal
 Register a `TempestConnectionReference` via `#[ServiceContext]` to bridge Tempest's `DatabaseConfig` to Ecotone's DBAL module:
 
 ```php
-use Ecotone\Api\Attribute\ServiceContext;
-use Ecotone\Api\Tempest\TempestConnectionReference;
+use Ecotone\Messaging\Attribute\ServiceContext;
+use Ecotone\Tempest\Config\TempestConnectionReference;
 
 final class EcotoneConfiguration
 {
@@ -223,9 +211,9 @@ public function dbalConnection(): TempestConnectionReference
 Use `MultiTenantConfiguration` together with per-tenant `TempestConnectionReference` instances. A `tenant` header on each message selects the correct database:
 
 ```php
-use Ecotone\Api\Dbal\ExtensionObject\MultiTenantConfiguration;
-use Ecotone\Api\Attribute\ServiceContext;
-use Ecotone\Api\Tempest\TempestConnectionReference;
+use Ecotone\Dbal\MultiTenant\MultiTenantConfiguration;
+use Ecotone\Messaging\Attribute\ServiceContext;
+use Ecotone\Tempest\Config\TempestConnectionReference;
 use Tempest\Database\Config\MysqlConfig;
 use Tempest\Database\Config\PostgresConfig;
 
@@ -261,7 +249,7 @@ Route commands to the correct tenant by setting the header:
 $commandBus->sendWithRouting('order.place', $order, metadata: ['tenant' => 'tenant_a']);
 ```
 
-> **Security note:** When the production cache is in use, the `DatabaseConfig` for each
+> **Security note:** When `cacheConfiguration` is enabled, the `DatabaseConfig` for each
 > `TempestConnectionReference::create(name, config)` call is serialized into the on-disk cache
 > file. This means database credentials (username, password, DSN) are written to disk in
 > base64-encoded serialized form. Keep the cache directory (`sys_get_temp_dir()/ecotone_tempest/`)
@@ -270,23 +258,29 @@ $commandBus->sendWithRouting('order.place', $order, metadata: ['tenant' => 'tena
 
 ## Production Caching
 
-The container cache mode is derived, there is no setting for it. When `APP_ENV=prod` or `APP_ENV=production`, or when
-Tempest's own discovery cache is on (`DISCOVERY_CACHE=true`), the dumped messaging system is reused as is from
-`sys_get_temp_dir()/ecotone_tempest/`; clear it after deployment:
+Enable the configuration cache for production to avoid re-scanning annotations on every request:
+
+```php
+new EcotoneConfig(
+    cacheConfiguration: true,
+);
+```
+
+Or set the `ECOTONE_CACHE_CONFIGURATION=1` environment variable. The cache is stored in `sys_get_temp_dir()/ecotone_tempest/`. Clear it after deployment:
 
 ```bash
 ./tempest ecotone:cache:clear
 ```
 
-In every other case the dumped container is rebuilt whenever a scanned file changes.
+When `APP_ENV=prod` or `APP_ENV=production`, the production cache path is used automatically regardless of the `cacheConfiguration` setting.
 
 ## Expression Language
 
 Ecotone supports Symfony Expression Language in `#[Payload]` and `#[Header]` attributes. The `parameter()` function reads from environment variables via `TempestConfigurationVariableService`:
 
 ```php
-use Ecotone\Api\Attribute\Payload;
-use Ecotone\Api\Attribute\CommandHandler;
+use Ecotone\Messaging\Attribute\Parameter\Payload;
+use Ecotone\Modelling\Attribute\CommandHandler;
 
 final class CalculatorHandler
 {

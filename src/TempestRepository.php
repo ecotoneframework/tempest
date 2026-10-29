@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Ecotone\Tempest;
 
-use Ecotone\Api\Modelling\StateStoredRepository;
+use Ecotone\Modelling\StandardRepository;
 use Tempest\Database\IsDatabaseModel;
 
 /**
  * licence Apache-2.0
  */
-final class TempestRepository implements StateStoredRepository
+final class TempestRepository implements StandardRepository
 {
     public function canHandle(string $aggregateClassName): bool
     {

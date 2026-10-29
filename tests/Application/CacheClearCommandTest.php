@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Test\Ecotone\Tempest\Application;
 
+use Ecotone\Messaging\Config\ModulePackageList;
 use Ecotone\Tempest\EcotoneConfig;
 use Ecotone\Tempest\MessagingSystemInitializer;
 use Test\Ecotone\Tempest\EcotoneIntegrationTestCase;
@@ -18,7 +19,7 @@ final class CacheClearCommandTest extends EcotoneIntegrationTestCase
     {
         return new EcotoneConfig(
             namespaces: ['Test\\Ecotone\\Tempest\\Fixture\\'],
-            enabledModulePackageNames: \Test\Ecotone\Tempest\TempestTestModulePackages::all(),
+            skippedModulePackageNames: ModulePackageList::allPackages(),
             test: true,
         );
     }

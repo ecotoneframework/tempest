@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Test\Ecotone\Tempest\Application;
 
-use Ecotone\Api\Gateway\QueryBus;
+use Ecotone\Messaging\Config\ModulePackageList;
+use Ecotone\Modelling\QueryBus;
 use Ecotone\Tempest\EcotoneConfig;
 use Ecotone\Tempest\EcotoneServiceInitializer;
 use Ecotone\Tempest\MessagingSystemInitializer;
@@ -70,7 +71,7 @@ final class LoggerWiringTest extends IntegrationTest
 
         $kernel->container->config(new EcotoneConfig(
             namespaces: ['Test\\Ecotone\\Tempest\\Fixture\\ExpressionLanguage\\'],
-            enabledModulePackageNames: \Test\Ecotone\Tempest\TempestTestModulePackages::all(),
+            skippedModulePackageNames: ModulePackageList::allPackages(),
             test: true,
         ));
 

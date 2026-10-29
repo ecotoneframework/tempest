@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Test\Ecotone\Tempest;
 
+use Ecotone\Messaging\Config\ModulePackageList;
 use Ecotone\Tempest\EcotoneConfig;
 use Ecotone\Tempest\EcotoneServiceInitializer;
 use Ecotone\Tempest\MessagingSystemInitializer;
@@ -26,7 +27,7 @@ abstract class EcotoneIntegrationTestCase extends IntegrationTest
     {
         return new EcotoneConfig(
             namespaces: ['Test\\Ecotone\\Tempest\\Fixture\\'],
-            enabledModulePackageNames: TempestTestModulePackages::all(),
+            skippedModulePackageNames: ModulePackageList::allPackages(),
             test: true,
         );
     }

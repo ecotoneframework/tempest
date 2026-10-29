@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Ecotone\Tempest;
 
-use Ecotone\Api\Messaging\ConfiguredMessagingSystem;
+use Ecotone\Messaging\Config\ConfiguredMessagingSystem;
 use Tempest\Container\Container;
 use Tempest\Container\DynamicInitializer;
 use Tempest\Container\GenericContainer;

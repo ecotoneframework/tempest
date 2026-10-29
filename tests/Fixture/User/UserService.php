@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Test\Ecotone\Tempest\Fixture\User;
 
-use Ecotone\Api\Attribute\CommandHandler;
+use Ecotone\Modelling\Attribute\CommandHandler;
 
 /**
  * licence Apache-2.0

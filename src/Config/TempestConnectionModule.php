@@ -5,52 +5,36 @@ declare(strict_types=1);
 namespace Ecotone\Tempest\Config;
 
 use Ecotone\AnnotationFinder\AnnotationFinder;
-use Ecotone\Api\Attribute\Aggregate;
-use Ecotone\Api\Attribute\ModuleAnnotation;
-use Ecotone\Api\Dbal\ExtensionObject\MultiTenantConfiguration;
-use Ecotone\Api\ExtensionObject\ModulePackageList;
-use Ecotone\Api\Tempest\TempestConnectionReference;
 use Ecotone\Dbal\MultiTenant\HeaderBasedMultiTenantConnectionFactory;
+use Ecotone\Dbal\MultiTenant\MultiTenantConfiguration;
+use Ecotone\Messaging\Attribute\ModuleAnnotation;
 use Ecotone\Messaging\Config\Annotation\AnnotationModule;
 use Ecotone\Messaging\Config\Annotation\ModuleConfiguration\ExtensionObjectResolver;
 use Ecotone\Messaging\Config\Annotation\ModuleConfiguration\NoExternalConfigurationModule;
 use Ecotone\Messaging\Config\Configuration;
 use Ecotone\Messaging\Config\Container\Definition;
+use Ecotone\Messaging\Config\ModulePackageList;
 use Ecotone\Messaging\Config\ModuleReferenceSearchService;
 use Ecotone\Messaging\Handler\InterfaceToCallRegistry;
-use Ecotone\Messaging\Handler\ServiceActivator\MessageProcessorActivatorBuilder;
+use Ecotone\Messaging\Handler\ServiceActivator\ServiceActivatorBuilder;
 use Interop\Queue\ConnectionFactory;
 
 #[ModuleAnnotation]
 /**
  * licence Apache-2.0
  */
-final class TempestModule extends NoExternalConfigurationModule implements AnnotationModule
+final class TempestConnectionModule extends NoExternalConfigurationModule implements AnnotationModule
 {
-    /**
-     * @param class-string[] $aggregateClasses
-     */
-    private function __construct(private array $aggregateClasses)
-    {
-    }
-
     public static function create(AnnotationFinder $annotationRegistrationService, InterfaceToCallRegistry $interfaceToCallRegistry): static
     {
-        return new self($annotationRegistrationService->findAnnotatedClasses(Aggregate::class));
+        return new self();
     }
 
     public function prepare(Configuration $messagingConfiguration, array $extensionObjects, ModuleReferenceSearchService $moduleReferenceSearchService, InterfaceToCallRegistry $interfaceToCallRegistry): void
     {
-        TempestModelVersionGuard::assertNoVersionedTempestModel($this->aggregateClasses, $interfaceToCallRegistry);
-
         $tempestConnections = ExtensionObjectResolver::resolve(TempestConnectionReference::class, $extensionObjects);
 
         foreach ($tempestConnections as $connection) {
-            TempestConnectionDbalGuard::assertDbalInstalledFor(
-                $connection->configTag === null
-                    ? "TempestConnectionReference '{$connection->getReferenceName()}'"
-                    : "TempestConnectionReference::create('{$connection->configTag}')"
-            );
             $messagingConfiguration->registerServiceDefinition(
                 $connection->getReferenceName(),
                 $this->buildConnectionFactoryDefinition($connection)
@@ -66,7 +50,7 @@ final class TempestModule extends NoExternalConfigurationModule implements Annot
         $tempestRelatedMultiTenantConfigurations = [];
 
         foreach ($multiTenantConfigurations as $multiTenantConfiguration) {
-            foreach ($multiTenantConfiguration->tenantToConnectionMapping as $connectionReference) {
+            foreach ($multiTenantConfiguration->getTenantToConnectionMapping() as $connectionReference) {
                 if (! ($connectionReference instanceof TempestConnectionReference)) {
                     continue;
                 }
@@ -97,14 +81,20 @@ final class TempestModule extends NoExternalConfigurationModule implements Annot
         );
 
         $messagingConfiguration->registerMessageHandler(
-            MessageProcessorActivatorBuilder::createForMethod(TempestTenantDatabaseSwitcher::class, 'switchOn')
+            ServiceActivatorBuilder::create(TempestTenantDatabaseSwitcher::class, 'switchOn')
                 ->withInputChannelName(HeaderBasedMultiTenantConnectionFactory::TENANT_ACTIVATED_CHANNEL_NAME)
         );
 
         $messagingConfiguration->registerMessageHandler(
-            MessageProcessorActivatorBuilder::createForMethod(TempestTenantDatabaseSwitcher::class, 'switchOff')
+            ServiceActivatorBuilder::create(TempestTenantDatabaseSwitcher::class, 'switchOff')
                 ->withInputChannelName(HeaderBasedMultiTenantConnectionFactory::TENANT_DEACTIVATED_CHANNEL_NAME)
         );
+    }
+
+    public function canHandle($extensionObject): bool
+    {
+        return $extensionObject instanceof TempestConnectionReference
+            || $extensionObject instanceof MultiTenantConfiguration;
     }
 
     public function getModulePackageName(): string

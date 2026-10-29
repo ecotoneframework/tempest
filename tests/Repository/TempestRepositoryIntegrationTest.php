@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Test\Ecotone\Tempest\Repository;
 
+use Ecotone\Messaging\Config\ModulePackageList;
 use Ecotone\Tempest\EcotoneConfig;
 use Ecotone\Tempest\EcotoneServiceInitializer;
 use Ecotone\Tempest\MessagingSystemInitializer;
@@ -26,7 +27,7 @@ final class TempestRepositoryIntegrationTest extends EcotoneIntegrationTestCase
     {
         return new EcotoneConfig(
             namespaces: ['Test\\Ecotone\\Tempest\\Fixture\\Order\\'],
-            enabledModulePackageNames: \Test\Ecotone\Tempest\TempestTestModulePackages::all(),
+            skippedModulePackageNames: ModulePackageList::allPackages(),
             test: false,
         );
     }
@@ -52,7 +53,7 @@ final class TempestRepositoryIntegrationTest extends EcotoneIntegrationTestCase
 
     public function test_placing_an_order_with_tempest_model(): void
     {
-        $commandBus = $this->container->get(\Ecotone\Api\Gateway\CommandBus::class);
+        $commandBus = $this->container->get(\Ecotone\Modelling\CommandBus::class);
 
         $orderId = $commandBus->send(new PlaceOrder(userId: 'user-1', totalPrice: 100));
 
@@ -62,8 +63,8 @@ final class TempestRepositoryIntegrationTest extends EcotoneIntegrationTestCase
 
     public function test_state_change_round_trips_through_command_and_query_bus(): void
     {
-        $commandBus = $this->container->get(\Ecotone\Api\Gateway\CommandBus::class);
-        $queryBus = $this->container->get(\Ecotone\Api\Gateway\QueryBus::class);
+        $commandBus = $this->container->get(\Ecotone\Modelling\CommandBus::class);
+        $queryBus = $this->container->get(\Ecotone\Modelling\QueryBus::class);
 
         $orderId = $commandBus->send(new PlaceOrder(userId: 'user-1', totalPrice: 100));
 

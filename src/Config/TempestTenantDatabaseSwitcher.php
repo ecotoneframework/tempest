@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Ecotone\Tempest\Config;
 
-use Ecotone\Api\Dbal\ExtensionObject\DbalConnectionReference;
-use Ecotone\Api\ExtensionObject\ConnectionReference;
-use Ecotone\Api\Tempest\TempestConnectionReference;
+use Ecotone\Messaging\Config\ConnectionReference;
+use Enqueue\Dbal\DbalConnectionFactory;
 use Tempest\Container\GenericContainer;
 use Tempest\Database\Config\DatabaseConfig;
 use Tempest\Database\Connection\Connection;
@@ -42,7 +41,7 @@ final class TempestTenantDatabaseSwitcher
             return;
         }
 
-        $configTag = $activatedConnection->configTag;
+        $configTag = $activatedConnection->getConfigTag();
 
         if ($configTag === null) {
             return;
@@ -94,12 +93,12 @@ final class TempestTenantDatabaseSwitcher
 
     private function closeDoctrineDefaultConnection(GenericContainer $container): void
     {
-        if (! $container->has(DbalConnectionReference::DEFAULT)) {
+        if (! $container->has(DbalConnectionFactory::class)) {
             return;
         }
 
         try {
-            $factory = $container->get(DbalConnectionReference::DEFAULT);
+            $factory = $container->get(DbalConnectionFactory::class);
             $doctrineConnection = $factory->createContext()->getDbalConnection();
             $doctrineConnection->close();
         } catch (Throwable) {

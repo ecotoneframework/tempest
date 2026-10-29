@@ -6,6 +6,7 @@ namespace Test\Ecotone\Tempest\Hardening;
 
 use const DIRECTORY_SEPARATOR;
 
+use Ecotone\Messaging\Config\ModulePackageList;
 use Ecotone\Tempest\EcotoneConfig;
 use Ecotone\Tempest\EcotoneServiceInitializer;
 use Ecotone\Tempest\MessagingSystemInitializer;
@@ -79,7 +80,7 @@ final class CompiledContainerInitializerServiceTest extends TestCase
         $container = new GenericContainer();
         $container->config(new EcotoneConfig(
             namespaces: ['Test\\Ecotone\\Tempest\\Hardening\\Fixture\\InitializerService\\'],
-            enabledModulePackageNames: \Test\Ecotone\Tempest\TempestTestModulePackages::all(),
+            skippedModulePackageNames: ModulePackageList::allPackages(),
         ));
         $container->addInitializer(GreetingServiceInitializer::class);
 
